@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Superproject moved: realign oss/ to the pinned commit, then fill in missing files.
+cd "$(git rev-parse --show-toplevel)" || exit 0
+git submodule update --init -q && tools/sync-oss.sh

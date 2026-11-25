@@ -13,7 +13,7 @@ done
 sort -o "$new" "$new"
 
 # remove files synced earlier that the pinned oss version lacks
-comm -23 <(sort "$manifest") "$new" | while IFS= read -r f; do rm -f -- "$f"; done
+comm -23 <(sort "$manifest") "$new" | while IFS= read -r f; do git ls-files --error-unmatch -- "$f" >/dev/null 2>&1 || rm -f -- "$f"; done
 cp "$new" "$manifest"
 echo "sync-oss: $(wc -l < "$manifest" | tr -d ' ') files from oss $(git -C oss describe --tags --always)"
 # keep synced files out of `git status`

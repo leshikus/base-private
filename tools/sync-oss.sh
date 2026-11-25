@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
 # Copy files that exist in oss/ but not in this repo; drop copies that oss no longer has.
 set -euo pipefail
-root=$(git rev-parse --show-toplevel); cd "$root"
+cd "$(git rev-parse --show-toplevel)"
 manifest=.oss-synced
 touch "$manifest"
-new=$(mktemp); trap 'rm -f "$new"' EXIT
+oss=$(mktemp); mine=$(mktemp); new=$(mktemp); trap 'rm -f "$oss" "$mine" "$new"' EXIT
 
-git -C oss ls-files | while IFS= read -r f; do
-    if git ls-files --error-unmatch -- "$f" >/dev/null 2>&1; then continue; fi  # private file wins
-    mkdir -p "$(dirname "$f")"; cp "oss/$f" "$f"; echo "$f" >> "$new"
-done
-sort -o "$new" "$new"
+git -c core.quotepath=off -C oss ls-files | LC_ALL=C sort > "$oss"
+git -c core.quotepath=off ls-files | LC_ALL=C sort > "$mine"
+LC_ALL=C comm -23 "$oss" "$mine" > "$new"  # private file wins
 
-# remove files synced earlier that the pinned oss version lacks
-comm -23 <(sort "$manifest") "$new" | while IFS= read -r f; do rm -f -- "$f"; done
+[ -s "$new" ] && tar -C oss -cf - -T "$new" | tar -xf -
+# remove files synced earlier that the pinned oss lacks and that are not tracked
+LC_ALL=C comm -23 <(LC_ALL=C sort "$manifest") "$new" | LC_ALL=C comm -23 - "$mine" | while IFS= read -r f; do rm -f -- "$f"; done
 cp "$new" "$manifest"
-echo "sync-oss: $(wc -l < "$manifest" | tr -d ' ') files from oss $(git -C oss describe --tags --always)"
+
 # keep synced files out of `git status`
 exclude=$(git rev-parse --git-path info/exclude)
-{ grep -vxF -f <(sed 's/^/\//' "$manifest") "$exclude" 2>/dev/null || true; sed 's/^/\//' "$manifest"; } > "$exclude.new" && mv "$exclude.new" "$exclude"
+{ grep -vxF -f <(sed 's/^/\//' "$new") "$exclude" 2>/dev/null || true; sed 's/^/\//' "$new"; } > "$exclude.new" && mv "$exclude.new" "$exclude"
+echo "sync-oss: $(wc -l < "$manifest" | tr -d ' ') files from oss $(git -C oss describe --tags --always)"
